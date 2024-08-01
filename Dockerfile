@@ -16,15 +16,15 @@ RUN apt update \
   && update-locale LC_ALL=en_US.UTF-8 LANG=en_US.UTF-8
 
 # Install python 3.10.11
-RUN apt-get -yq install wget libffi-dev
+RUN apt-get -yq install wget
+# libffi-dev build-essential zlib1g-dev zlibc libssl1.1 libssl1.0
+RUN apt-get -yq install build-essential zlib1g-dev libncurses5-dev libgdbm-dev libnss3-dev libssl-dev libreadline-dev libffi-dev wget
 RUN mkdir /python && cd /python && \
     wget -c https://www.python.org/ftp/python/3.10.11/Python-3.10.11.tgz
-RUN cd /python && tar -zxvf Python-3.10.11.tgz && \
-    cd Python-3.10.11 && \
-    ls -lhR && \
-    ./configure --enable-optimizations && \
-    make install && \
-    rm -rf /python
+RUN cd /python && tar -zxvf Python-3.10.11.tgz
+RUN cd /python/Python-3.10.11 && ./configure --enable-optimizations
+RUN cd /python/Python-3.10.11 && make install
+RUN cd /python/Python-3.10.11 && rm -rf /python
 
 # Install APT dependencies
 ADD sources/apt.txt /opt/sources/apt.txt
@@ -106,6 +106,9 @@ RUN from=$( awk '/^## Usage/{ print NR; exit }' /usr/share/man/man.txt ) && \
 ADD https://github.com/Yelp/dumb-init/releases/download/v1.2.0/dumb-init_1.2.0_amd64.deb /opt/sources/dumb-init.deb
 RUN dpkg -i /opt/sources/dumb-init.deb
 ADD bin/boot /usr/bin/boot
+
+ADD nginx.conf.sigil /opt/odoo/sources/nginx.conf.sigil
+
 ENTRYPOINT [ "/usr/bin/dumb-init", "/usr/bin/boot" ]
 CMD [ "help" ]
 
