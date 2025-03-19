@@ -62,7 +62,7 @@ RUN apt-get update && xargs -a /tmp/apt.txt apt-get install -y --no-install-reco
 
 # Copy custom Odoo addons
 COPY sources/addons /mnt/extra-addons
-RUN chown -R odoo:odoo /mnt/extra-addons
+RUN chown -R odoo:odoo /opt/odoo/etc/ && chmod -R u+w /opt/odoo/etc/
 # This allows for the inclusion of custom addons.
 
 # Copy the custom Odoo configuration file

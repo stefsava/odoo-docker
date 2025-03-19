@@ -116,7 +116,7 @@ END \$\$
 
 # Define storage paths
 mkdir -p "$STORAGE_PATH"/{filestore,sessions,addons,ssh,scripts}
-dokku storage:ensure-directory
+dokku storage:ensure-directory "$APPNAME"
 
 # Mount storage volumes in Dokku
 echo "🔹 Mounting storage volumes..."

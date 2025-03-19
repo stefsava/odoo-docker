@@ -26,7 +26,8 @@ function _ensure_odoo_user_owns_volume {
 
         if [ "$mount_type" != 'ro' ]; then
             # Set target user as owner
-            chown "$odoo_user":"$odoo_user" "$1"
+            # chown "$odoo_user":"$odoo_user" "$1"
+            echo "[boot][$(date +%F.%H:%M:%S)] Skipping chown: not allowed in Dokku"
         else
             echo $log_src[`date +%F.%H:%M:%S`]' Read-only volume:' "$1"
         fi
