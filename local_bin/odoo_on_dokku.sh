@@ -1,145 +1,118 @@
 #!/bin/bash
 
-# This script https://gist.github.com/stefsava/19e60dfd3eff08dd5c8e57177b8abb1f
-# install Odoo community edition (https://odoo-community.org)
-# on dokku (http://dokku.viewdocs.io/dokku/)
-# using the elicocorp docker image (https://github.com/Elico-Corp/odoo-docker).
-#
-# Any suggestions are welcome.
+# This script installs Odoo Community Edition on Dokku
+# Maintainer: Stefano Savanelli <stefano@savanelli.it>
 
-# APPNAME=odoo
-# PGNAME=odoo
 VERSION=18.0
-# MASTERPASSWORD=strong_odoo_master_password
-# PGPASSWORD=strong_pg_odoo_password
 
-usage() { # Function: Print a help message.
-  echo "Usage: $0 -a APPNAME -m MASTERPASSWORD -p PGPASSWORD [ -d PGNAME ] [ -v VERSION ]" 1>&2
-}
-
-exit_abnormal() { # Function: Exit with error.
-  usage
+# Function: Exit with an error message
+exit_abnormal() {
+  echo "❌ Error: $1"
   exit 1
 }
 
-if [[ $1 == "" ]]; then # If no parameters.
-  exit_abnormal # Exit abnormally.
+# Function: Generate a random secure password
+generate_password() {
+  openssl rand -base64 24 | tr -d "=+/[:space:]"
+}
+
+# Validate Dokku installation
+if ! command -v dokku &> /dev/null; then
+  exit_abnormal "Dokku is not installed. Please install Dokku first."
 fi
 
-while getopts ":a:m:p:d:v:" options; do        # Loop: Get the next option;
-                                               # use silent error checking;
-                                               # options n and t take arguments.
-  case "${options}" in                         #
-    a)
-      APPNAME=${OPTARG}
-      ;;
-    m)
-      MASTERPASSWORD=${OPTARG}
-      ;;
-    p)
-      PGPASSWORD=${OPTARG}
-      ;;
-    d)
-      PGNAME=${OPTARG}
-      ;;
-    v)
-      VERSION=${OPTARG}
-      ;;
-    :)                                         # If expected argument omitted:
-      echo "Error: -${OPTARG} requires an argument."
-      exit_abnormal                            # Exit abnormally.
-      ;;
-    *)                                         # If unknown (any other) option:
-      exit_abnormal                            # Exit abnormally.
-      ;;
+# Parse command-line arguments
+while getopts ":a:m:p:d:v:" options; do
+  case "${options}" in
+    a) APPNAME=${OPTARG} ;;
+    m) MASTERPASSWORD=${OPTARG} ;;
+    p) PGPASSWORD=${OPTARG} ;;
+    d) PGNAME=${OPTARG} ;;
+    v) VERSION=${OPTARG} ;;
+    :) exit_abnormal "-${OPTARG} requires an argument." ;;
+    *) exit_abnormal "Invalid argument." ;;
   esac
 done
 
+# Validate required parameters
 if [[ -z "$APPNAME" ]]; then
-  echo "Error: missing -a APPNAME parameter!" 1>&2
-  exit_abnormal                            # Exit abnormally.
+  exit_abnormal "Missing -a APPNAME parameter!"
 fi
 
-if [[ -z "$PGNAME" ]]; then
-  echo "Notice: PGNAME set as APPNAME (${APPNAME})" 1>&2
-  PGNAME="${APPNAME}"
+# Set PGNAME to APPNAME if not provided
+PGNAME=${PGNAME:-$APPNAME}
+
+# Generate passwords if not provided
+MASTERPASSWORD=${MASTERPASSWORD:-$(generate_password)}
+PGPASSWORD=${PGPASSWORD:-$(generate_password)}
+
+echo "🔹 Installing Odoo on Dokku..."
+echo "➡ Odoo App Name: ${APPNAME}"
+echo "➡ Odoo Version: ${VERSION}"
+echo "➡ PostgreSQL Service Name: ${PGNAME}"
+echo "➡ PostgreSQL Username: odoo"
+
+# Check if the Dokku app already exists
+if ! dokku apps:exists $APPNAME; then
+  echo "✅ Creating Dokku app '$APPNAME'..."
+  dokku apps:create $APPNAME
 fi
 
-if [[ -z "$MASTERPASSWORD" ]]; then
-  echo "Error: missing -m MASTERPASSWORD parameter!" 1>&2
-  exit_abnormal                            # Exit abnormally.
+# Check if the PostgreSQL database already exists
+if ! dokku postgres:exists $PGNAME; then
+  echo "✅ Creating PostgreSQL service '$PGNAME'..."
+  dokku postgres:create $PGNAME
 fi
 
-if [[ -z "$PGPASSWORD" ]]; then
-  echo "Error: missing -p PGPASSWORD parameter!" 1>&2
-  exit_abnormal                            # Exit abnormally.
+# Link PostgreSQL database to the application (if not already linked)
+if ! dokku postgres:linked $PGNAME $APPNAME; then
+  echo "🔗 Linking PostgreSQL service '$PGNAME' to '$APPNAME'..."
+  dokku postgres:link $PGNAME $APPNAME
 fi
 
-echo "Odoo appname: ${APPNAME}"
-echo "Odoo version: ${VERSION}"
-echo "Odoo master password: ${MASTERPASSWORD}"
-echo "PostgreSQL service name: ${PGNAME}"
-echo "PostgreSQL user name: odoo"
-echo "PostgreSQL odoo user password: ${PGPASSWORD}"
-
-##############################################################
-# exit 0
-##############################################################
-
-# ( \
-#   [ -z "$APPNAME" ] || \
-#   [ -z "$PGNAME" ] || \
-#   [ -z "$VERSION" ] || \
-#   [ -z "$MASTERPASSWORD" ] || \
-#   [ -z "$PGPASSWORD" ] \
-# ) && echo "missing config" && exit -1
-
-dokku apps:create $APPNAME
-
-dokku postgres:create $PGNAME
-dokku postgres:link $PGNAME $APPNAME
-
+# Configure PostgreSQL user for Odoo
+echo "🔹 Configuring PostgreSQL..."
 echo "
-  CREATE user odoo WITH password '$PGPASSWORD';
-  ALTER user odoo WITH createdb;
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'odoo') THEN
+    CREATE USER odoo WITH PASSWORD '$PGPASSWORD';
+    ALTER USER odoo WITH CREATEDB;
+  END IF;
+END $$;
 " | dokku postgres:connect $PGNAME
 
-cd /var/lib/dokku/data/storage/
-mkdir -p {$APPNAME/filestore,$APPNAME/sessions,$APPNAME/addons,$APPNAME/ssh}
+# Define storage paths
+STORAGE_PATH="/var/lib/dokku/data/storage/$APPNAME"
+mkdir -p $STORAGE_PATH/{filestore,sessions,addons,ssh,scripts}
 
-echo '#!/bin/bash
-pip3 install codicefiscale
-pip3 install phonenumbers
-' > $APPNAME/scripts/startup.sh
+# Mount storage volumes in Dokku (only if not already mounted)
+if ! dokku storage:report $APPNAME | grep -q "/opt/odoo/additional_addons"; then
+  dokku storage:mount $APPNAME $STORAGE_PATH/addons:/opt/odoo/additional_addons
+  dokku storage:mount $APPNAME $STORAGE_PATH/filestore:/opt/odoo/data/filestore
+  dokku storage:mount $APPNAME $STORAGE_PATH/sessions:/opt/odoo/data/sessions
+  dokku storage:mount $APPNAME $STORAGE_PATH/scripts:/opt/scripts
+  dokku storage:mount $APPNAME $STORAGE_PATH/ssh:/opt/odoo/ssh:ro
+fi
 
-echo '# list the OCA project dependencies, one per line
-# add a github url if you need a forked version
-# url is not required for OCA projects
-# project https://github.com/OCA/project.git $VERSION
-# project $VERSION
-# account-payment $VERSION
-# hr $VERSION
-# l10n-italy $VERSION
-' >> $APPNAME/addons/oca_dependencies.txt
+# Configure Dokku proxy for Odoo
+dokku proxy:ports-add $APPNAME http:80:8069
+dokku proxy:ports-add $APPNAME http:8072:8072
 
-chown -R 32767:32767 $APPNAME
-dokku storage:mount $APPNAME /var/lib/dokku/data/storage/$APPNAME/addons:/opt/odoo/additional_addons
-dokku storage:mount $APPNAME /var/lib/dokku/data/storage/$APPNAME/filestore:/opt/odoo/data/filestore
-dokku storage:mount $APPNAME /var/lib/dokku/data/storage/$APPNAME/sessions:/opt/odoo/data/sessions
-dokku storage:mount $APPNAME /var/lib/dokku/data/storage/$APPNAME/scripts:/opt/scripts
-dokku storage:mount $APPNAME /var/lib/dokku/data/storage/$APPNAME/ssh:/opt/odoo/ssh:ro
-dokku storage:report $APPNAME
-
-dokku proxy:ports-set $APPNAME http:80:8069
-
+# Set environment variables for Odoo
 dokku config:set $APPNAME \
-  TARGET_UID=32767 \
-  ODOO_ADMIN_PASSWD=$MASTERPASSWORD\
+  ODOO_ADMIN_PASSWD=$MASTERPASSWORD \
   ODOO_DB_HOST=dokku-postgres-$PGNAME \
   ODOO_DB_USER=odoo \
   ODOO_DB_PASSWORD=$PGPASSWORD \
+  ODOO_VERSION=$VERSION \
   DOKKU_DOCKERFILE_START_CMD="start"
 
-dokku git:from-image $APPNAME elicocorp/odoo:$VERSION
+# Deploy Odoo using the image
+docker pull stefsava/odoo:$VERSION || exit_abnormal "Odoo Docker image not found!"
+dokku git:from-image $APPNAME stefsava/odoo:$VERSION
 
+# Enable HTTPS with Let's Encrypt
 dokku letsencrypt $APPNAME
+
+echo "✅ Odoo $VERSION has been successfully installed on Dokku!"

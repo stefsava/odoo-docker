@@ -35,34 +35,52 @@ LABEL maintainer="Stefano Savanelli <stefano@savanelli.it> (Inspired by Elico Co
 # The official Odoo image already includes a compatible Python version,
 # so recompiling Python is unnecessary.
 
-# Install additional system dependencies if required (from apt.txt)
-COPY apt.txt /tmp/apt.txt
-RUN apt-get update && xargs -a /tmp/apt.txt apt-get install -y --no-install-recommends && \
+# Switch to root to install system dependencies
+USER root
+
+# Install additional system dependencies if required (from sources/apt.txt)
+COPY sources/apt.txt /tmp/apt.txt
+RUN apt-get update && xargs -a /tmp/apt.txt apt-get install -y --no-install-recommends \
+    git python3-venv && \
     apt-get clean && rm -rf /var/lib/apt/lists/* /tmp/apt.txt
-# This section allows for the installation of additional APT packages as needed.
 
 # Create Odoo system user
 # RUN adduser --system --home=/opt/odoo --group odoo
 # The official Odoo image already includes the 'odoo' system user.
+# Removed: timezone settings
+# The official Odoo image sets the timezone to UTC by default.
 
 # Clone Odoo source code
 # RUN git clone --depth 1 --branch ${GIT_BRANCH} https://www.github.com/odoo/odoo /opt/odoo
 # The official Odoo image includes the Odoo source code, so this step is unnecessary.
+# Removed: locale generation
+# The official Odoo image already has locale settings configured.
 
 # Copy custom Odoo addons to the extra-addons directory
-COPY ./addons /mnt/extra-addons
+# Removed: manual Python compilation
+# The official Odoo image includes a compatible Python version.
+
+# Copy custom Odoo addons
+COPY sources/addons /mnt/extra-addons
 RUN chown -R odoo:odoo /mnt/extra-addons
 # This allows for the inclusion of custom addons.
 
 # Copy the custom Odoo configuration file
-COPY ./odoo.conf /etc/odoo/
+COPY sources/odoo.conf /etc/odoo/odoo.conf
 RUN chown odoo:odoo /etc/odoo/odoo.conf
 # This enables the use of a custom configuration file.
 
 # Install Python dependencies (from requirements.txt)
-COPY requirements.txt /tmp/requirements.txt
-RUN pip3 install --no-cache-dir -r /tmp/requirements.txt && rm -f /tmp/requirements.txt
-# This installs additional Python packages as specified.
+COPY sources/requirements.txt /tmp/requirements.txt
+# Create a virtual environment and install dependencies inside it
+RUN python3 -m venv /opt/odoo/venv && \
+    /opt/odoo/venv/bin/pip install --no-cache-dir -r /tmp/requirements.txt && \
+    rm -f /tmp/requirements.txt
+# Using a virtual environment to avoid conflicts with system packages.
+
+# Ensure Odoo uses the virtual environment
+ENV PATH="/opt/odoo/venv/bin:$PATH"
+# This ensures that Odoo uses the virtual environment for Python dependencies.
 
 # Install wkhtmltopdf
 # RUN apt-get update && apt-get install -y wkhtmltopdf
@@ -72,9 +90,11 @@ RUN pip3 install --no-cache-dir -r /tmp/requirements.txt && rm -f /tmp/requireme
 # RUN apt-get update && apt-get install -y postgresql-client
 # The PostgreSQL client is already included in the official Odoo image,
 # so installing it again is unnecessary.
+# Removed: redundant `pip install`
+# Dependencies are already installed inside the virtual environment.
 
 # Copy the custom startup script
-COPY startup.sh /usr/local/bin/startup.sh
+COPY sources/startup.sh /usr/local/bin/startup.sh
 RUN chmod +x /usr/local/bin/startup.sh
 # This allows for custom startup procedures.
 
@@ -89,7 +109,11 @@ RUN mkdir -p /var/lib/odoo /mnt/extra-addons && \
 # EXPOSE 8069 8072
 # The official Odoo image already exposes these ports by default.
 # Additionally, in a Dokku environment, port mapping is handled by the reverse proxy.
+# Removed: PostgreSQL client installation
+# The PostgreSQL client is already included in the official Odoo image.
 
+# Switch back to the Odoo user for security
+USER odoo
 
 # Use the official entrypoint script and specify the custom startup command
 ENTRYPOINT ["/entrypoint.sh"]
