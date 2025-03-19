@@ -45,12 +45,12 @@ function _update_odoo_param {
 
     if [ "$found" -eq 0 ]; then
         # Substitute the value
-        sudo -i -u "$odoo_user" sed -i \
+        sed -i \
             "s/^$1\s*=.*/$1 = $2/g" "$odoo_conf_file"
     else
         # Append the parameter (hide tee output to stdout)
         echo "$1 = $2" | \
-            sudo -i -u "$odoo_user" tee -a "$odoo_conf_file" > /dev/null
+            tee -a "$odoo_conf_file" > /dev/null
     fi
 }
 
@@ -79,22 +79,22 @@ function _setup_ssh_key {
     # SSH config folder already exists when container has been restarted
     if [ ! -d "$ssh_folder" ]; then
         # Create SSH config folder
-        sudo -i -u "$odoo_user" mkdir "$ssh_folder"
+        mkdir "$ssh_folder"
 
         # Copy SSH private key from /opt/odoo/ssh
-        sudo -i -u "$odoo_user" cp /opt/odoo/ssh/id_rsa "$ssh_folder"
+        cp /opt/odoo/ssh/id_rsa "$ssh_folder"
 
         echo $log_src[`date +%F.%H:%M:%S`]' Scanning GitHub key...'
         # Hide ssh-keyscan stderr output since it's actually log message
         ssh-keyscan github.com 2> /dev/null | \
-            sudo -i -u "$odoo_user" tee "$ssh_folder/known_hosts" > /dev/null
+            tee "$ssh_folder/known_hosts" > /dev/null
 
         # Bind SSH key to GitHub host
         echo "host github.com
                 HostName github.com
                 User git
                 IdentityFile $ssh_folder/id_rsa" | \
-            sudo -i -u "$odoo_user" tee "$ssh_folder/config" > /dev/null
+            tee "$ssh_folder/config" > /dev/null
 
         # Secure SSH key
         chmod 400 "$ssh_folder/id_rsa"
@@ -107,8 +107,8 @@ function _download_addons {
     #  2) There's a file called `oca_dependencies.txt` at the root of extra addons folder
     if [ "$ADDONS_REPO" -o -f /opt/odoo/additional_addons/oca_dependencies.txt ]; then
         # Git config for target user
-        sudo -i -u "$odoo_user" git config --global user.email "webmaster@elico-corp.com"
-        sudo -i -u "$odoo_user" git config --global user.name "Elico Corp - Odoo Docker"
+        git config --global user.email "webmaster@elico-corp.com"
+        git config --global user.name "Elico Corp - Odoo Docker"
 
         # Setup SSH key
         if [ -f /opt/odoo/ssh/id_rsa ]; then
@@ -121,7 +121,7 @@ function _download_addons {
         fi
 
         echo $log_src[`date +%F.%H:%M:%S`]' Downloading additional addons...'
-        sudo -i -u "$odoo_user" python /opt/odoo/auto_addons/addons.py \
+        python /opt/odoo/auto_addons/addons.py \
             "$FETCH_OCA_DEPENDENCIES" "$ADDONS_REPO"
     else
         # No additional addons to download
@@ -131,7 +131,7 @@ function _download_addons {
         if [ "$found" -ne 0 ]; then
             # Set addons path if it doesn't exist
             echo 'addons_path = /opt/odoo/sources/odoo/addons' | \
-                sudo -i -u "$odoo_user" tee -a "$odoo_conf_file" > /dev/null
+                tee -a "$odoo_conf_file" > /dev/null
         fi
     fi
 }
@@ -203,7 +203,7 @@ function start {
     if [ ! -e $1 ]; then
         echo $log_src[`date +%F.%H:%M:%S`]' ...with additional args:' $*
     fi
-    sudo -i -u "$odoo_user" "$PYTHON_BIN" \
+    "$PYTHON_BIN" \
         "/opt/odoo/sources/odoo/$SERVICE_BIN" -c "$odoo_conf_file" $*
 }
 

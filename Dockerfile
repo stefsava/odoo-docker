@@ -66,8 +66,8 @@ RUN chown -R odoo:odoo /mnt/extra-addons
 # This allows for the inclusion of custom addons.
 
 # Copy the custom Odoo configuration file
-COPY sources/odoo.conf /etc/odoo/odoo.conf
-RUN chown odoo:odoo /etc/odoo/odoo.conf
+COPY sources/odoo.conf /opt/odoo/etc/odoo.conf
+RUN chown odoo:odoo /opt/odoo/etc/odoo.conf
 # This enables the use of a custom configuration file.
 
 # Install Python dependencies (from requirements.txt)
