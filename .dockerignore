@@ -1,0 +1,81 @@
+# Ignore compiled Python files
+__pycache__/
+*.py[cod]
+*.so
+
+# Ignore build and distribution directories
+build/
+dist/
+downloads/
+*.egg-info/
+.eggs/
+parts/
+sdist/
+develop-eggs/
+lib/
+lib64/
+target/
+
+# Ignore virtual environments
+.Python
+env/
+venv/
+
+# Ignore log files and test reports
+*.log
+pip-log.txt
+pip-delete-this-directory.txt
+htmlcov/
+.tox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*,cover
+
+# Ignore compiled translation files
+*.mo
+*.pot
+
+# Ignore generated documentation
+docs/_build/
+
+# Ignore PyInstaller-specific files
+*.manifest
+*.spec
+
+# Ignore temporary or backup files
+*~
+*.bak
+*.swp
+.DS_Store
+
+# Ignore local configuration files and databases
+*.db
+*.sqlite3
+*.ini
+*.cfg
+
+# Ignore IDE-specific configuration files
+.vscode/
+.idea/
+*.iml
+
+# Ignore sensitive SSH keys and certificates
+*.pem
+*.key
+
+# Ignore system-specific configuration files
+*.conf
+*.cnf
+
+# Ignore container-specific configuration files
+docker-compose.yml
+.dockerignore
+
+# Ignore Git-related files
+.git/
+.gitignore
+
+/*.sh
