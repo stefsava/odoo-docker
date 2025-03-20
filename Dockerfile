@@ -38,6 +38,8 @@ LABEL maintainer="Stefano Savanelli <stefano@savanelli.it> (Inspired by Elico Co
 # Switch to root to install system dependencies
 USER root
 
+RUN usermod -u 32767 odoo && groupmod -g 32767 odoo && chown -R odoo:odoo /opt/odoo
+
 # Install additional system dependencies if required (from sources/apt.txt)
 COPY sources/apt.txt /tmp/apt.txt
 RUN apt-get update && xargs -a /tmp/apt.txt apt-get install -y --no-install-recommends \
@@ -62,7 +64,7 @@ RUN apt-get update && xargs -a /tmp/apt.txt apt-get install -y --no-install-reco
 
 # Copy custom Odoo addons
 COPY sources/addons /mnt/extra-addons
-RUN chown -R odoo:odoo /opt/odoo/etc/ && chmod -R u+w /opt/odoo/etc/
+RUN mkdir -p /opt/odoo/etc && chown -R odoo:odoo /opt/odoo/etc && chmod -R u+w /opt/odoo/etc
 # This allows for the inclusion of custom addons.
 
 # Copy the custom Odoo configuration file
@@ -94,8 +96,8 @@ ENV PATH="/opt/odoo/venv/bin:$PATH"
 # Dependencies are already installed inside the virtual environment.
 
 # Copy the custom startup script
-COPY sources/startup.sh /usr/local/bin/startup.sh
-RUN chmod +x /usr/local/bin/startup.sh
+COPY sources/startup.sh /opt/scripts/startup.sh
+RUN chmod +x /opt/scripts/startup.sh
 # This allows for custom startup procedures.
 
 # Ensure volume directories are properly set up
